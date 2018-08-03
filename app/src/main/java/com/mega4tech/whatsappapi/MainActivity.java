@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.DefaultItemAnimator;
@@ -26,6 +27,8 @@ import com.mega4tech.whatsappapilibrary.liseteners.GetContactsListener;
 import com.mega4tech.whatsappapilibrary.liseteners.SendMessageListener;
 import com.mega4tech.whatsappapilibrary.model.WContact;
 import com.mega4tech.whatsappapilibrary.model.WMessage;
+import com.mega4tech.whatsappapilibrary.model.WPackage;
+import com.mega4tech.whatsappapilibrary.model.WPackageWhatsapp;
 import com.miguelgaeta.media_picker.MediaPicker;
 import com.miguelgaeta.media_picker.RequestType;
 
@@ -54,7 +57,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private TextView mAttachmentTv;
     private Button mAddAttachmentBtn;
     private ContactCardRecyclerViewAdapter mAdapter;
-
+    private WhatsappApi whatsappApi;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,13 +66,29 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mDictionary = new HashMap<>();
         mReceivers = new LinkedList<>();
 
-        if (!WhatsappApi.getInstance().isWhatsappInstalled()) {
+        //if you use a custom version...
+        WPackageWhatsapp wPackageWhatsapp = new WPackageWhatsapp(
+                MainActivity.this,
+                "com.gbwhatsapp3",
+                Environment.getExternalStorageDirectory().getAbsolutePath() + "/GBWhatsApp3/Media/GBWhatsApp3 Images/Sent",
+                Environment.getExternalStorageDirectory().getAbsolutePath() + "/GBWhatsApp3/Media/GBWhatsApp3 Video/Sent",
+                Environment.getExternalStorageDirectory().getAbsolutePath() + "/GBWhatsApp3/Media/GBWhatsApp3 Audio/Sent");
+
+
+        whatsappApi = new WhatsappApi.Builder()
+                .setContext(MainActivity.this)
+                .isExternalSpace(false)
+                .setPackageWhatsapp(wPackageWhatsapp)
+                .Build();
+
+
+        if (!whatsappApi.isWhatsappInstalled()) {
             Toast.makeText(this, "Whatsapp not installed", Toast.LENGTH_SHORT).show();
             return;
         }
 
 
-        if (!WhatsappApi.getInstance().isRootAvailable()) {
+        if (!whatsappApi.isRootAvailable()) {
             Toast.makeText(this, "Root is not available", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -88,7 +107,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mContactsRv.setItemAnimator(new DefaultItemAnimator());
 
         try {
-            WhatsappApi.getInstance().getContacts(this, new GetContactsListener() {
+            whatsappApi.getContacts(this, new GetContactsListener() {
                 @Override
                 public void receiveWhatsappContacts(List<WContact> contacts) {
                     mAllContacts = contacts;
@@ -185,7 +204,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 WMessage message = new WMessage(text, attachmentFile, this);
 
                 try {
-                    WhatsappApi.getInstance().sendMessage(mReceivers, message, this, new SendMessageListener() {
+                    whatsappApi.sendMessage(mReceivers, message, this, new SendMessageListener() {
                         @Override
                         public void finishSendWMessage(List<WContact> contact, WMessage message) {
                             Toast.makeText(MainActivity.this, "your message has been sent successfully", Toast.LENGTH_SHORT).show();

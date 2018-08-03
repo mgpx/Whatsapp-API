@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteException;
@@ -16,20 +18,10 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 
+import com.mega4tech.whatsappapilibrary.database.DatabaseManager;
 import com.mega4tech.whatsappapilibrary.exception.WhatsappNotInstalledException;
-import com.mega4tech.whatsappapilibrary.liseteners.GetChatListener;
-import com.mega4tech.whatsappapilibrary.liseteners.GetMessageListener;
-import com.mega4tech.whatsappapilibrary.liseteners.GetPreferenceListener;
-import com.mega4tech.whatsappapilibrary.liseteners.GetTableCountListener;
-import com.mega4tech.whatsappapilibrary.liseteners.WhatsappDataListener;
-import com.mega4tech.whatsappapilibrary.model.WChat;
-import com.mega4tech.whatsappapilibrary.model.WContact;
-import com.mega4tech.whatsappapilibrary.model.WGroupParticipant;
-import com.mega4tech.whatsappapilibrary.model.WIdentity;
-import com.mega4tech.whatsappapilibrary.model.WMediaFile;
-import com.mega4tech.whatsappapilibrary.model.WMessage;
-import com.mega4tech.whatsappapilibrary.model.WPreference;
-import com.mega4tech.whatsappapilibrary.model.WStoredMessage;
+import com.mega4tech.whatsappapilibrary.liseteners.*;
+import com.mega4tech.whatsappapilibrary.model.*;
 import com.whatsapp.MediaData;
 
 import org.apache.commons.io.FilenameUtils;
@@ -43,11 +35,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 import eu.chainfire.libsuperuser.Shell;
 
@@ -57,36 +45,57 @@ import eu.chainfire.libsuperuser.Shell;
 
 public class WhatsappApi {
 
+    public static class Builder{
+
+        private WhatsappApi instance = new WhatsappApi();
+
+        public WhatsappApi.Builder setContext(Context context){
+            instance.context = context;
+            return this;
+        }
+        public WhatsappApi.Builder isExternalSpace(Boolean isExternalSpace){
+            instance.isExternalSpace = isExternalSpace;
+            return this;
+        }
+
+        public WhatsappApi.Builder setPackageWhatsapp(WPackageWhatsapp packageWhatsapp){
+            instance.wPackageWhatsapp = packageWhatsapp;
+            return this;
+        }
+
+        public WhatsappApi Build(){
+            instance.Inicialize(false);
+            return instance;
+        }
+
+
+
+    }
     private boolean isRootAvailable;
-    private boolean isWhatsappInstalled;
-    private static String imgFolder = Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Images/Sent";
-    private static String vidFolder = Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video/Sent";
-    private static String audFolder = Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Audio/Sent";
-    private String whatsappPath;
-    private String whatsappPrefPath;
-    private String appPath;
-    private SQLiteDatabase dbMessage;
-    private static final String NAME_WHATSAPP_PREFS = "com.whatsapp_preferences.xml";
-    private static final String NAME_REGISTER_PHONE = "registration.RegisterPhone.xml";
+
+    //private SQLiteDatabase dbMessage;
+
+    private WPackage wPackageThis = null;
+    private WPackageWhatsapp wPackageWhatsapp = null;
+
     private Context context;
     private boolean isExternalSpace = false;
 
-    public WhatsappApi(Context context) throws Exception {
-        this(context, true, false);
+
+    public WhatsappApi() {
+
     }
 
-    public WhatsappApi(Context context, boolean loadDb) throws Exception {
-        this(context, loadDb, false);
-    }
-
-    public WhatsappApi(Context context, boolean loadDb, boolean isExternalSpace) throws Exception {
-        this.context = context;
-        whatsappPath = getApplicationFolderPath(context, "com.whatsapp");
-        whatsappPrefPath = getPrefPath(context, "com.whatsapp");
-        appPath = getApplicationFolderPath(context, context.getPackageName());
-        isWhatsappInstalled = (new File(whatsappPath)).exists();
+    public void Inicialize(Boolean loadDb){
+        wPackageThis = new WPackage(context, context.getPackageName());
+        //whatsappPath = getApplicationFolderPath(context, "com.whatsapp");
+        //whatsappPrefPath = getPrefPath(context, "com.whatsapp");
+        //appPath = getApplicationFolderPath(context, context.getPackageName());
+        //isWhatsappInstalled = (new File(whatsappPath)).exists();
         isRootAvailable = Shell.SU.available();
-        this.isExternalSpace = isExternalSpace;
+
+        String whatsappPath = wPackageWhatsapp.getAppFolderPath();
+        String appPath = wPackageThis.getAppFolderPath();
         if (isRootAvailable) {
 //            Shell.SU.run("am force-stop com.whatsapp");
             Shell.SU.run("mount -o -R rw,remount " + whatsappPath);
@@ -103,21 +112,25 @@ public class WhatsappApi {
             Shell.SU.run("chmod 777 " + whatsappPath + "/databases/wa.db");
             Shell.SU.run("chmod 777 " + whatsappPath + "/databases/wa.db-wal");
             Shell.SU.run("chmod 777 " + whatsappPath + "/databases/wa.db-shm");
+            Shell.SU.run("chmod 777 " + whatsappPath); //this line solves the problem in some cases where the sql library can not open the
             Shell.SU.run("ls -l " + whatsappPath + "/databases/msgstore.db-shm");
+
+            DatabaseManager.initializeInstance(this.wPackageWhatsapp);
+
         }
+        /*
         if (isRootAvailable && loadDb) {
             initiate();
         }
+        */
     }
+
+
 
     public boolean isWhatsappInstalled() {
-        return isWhatsappInstalled;
+        return wPackageWhatsapp.isInstalled();
     }
 
-    public void refereshDb() {
-        closeConnection();
-        initiate();
-    }
 
     @SuppressLint("StaticFieldLeak")
     public synchronized void readMessages(final int limit, final long lastSyncId, final boolean readMedia, final GetMessageListener getMessageListener) {
@@ -164,6 +177,8 @@ public class WhatsappApi {
 
         initialCheck();
 
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
+
         List<WStoredMessage> wStoredMessages = new ArrayList<>();
         if (dbMessage != null) {
             List<WMediaFile> mediaFiles = new ArrayList<>();
@@ -191,6 +206,7 @@ public class WhatsappApi {
             }
         }
 
+        DatabaseManager.db_msgstore.closeDatabase();
         return wStoredMessages;
     }
 
@@ -228,6 +244,8 @@ public class WhatsappApi {
 
         initialCheck();
 
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
+
         int messageCount = 0;
         if (dbMessage != null && dbMessage.isOpen()) {
             String selectQuery = "SELECT count(*) as count FROM " + tableName;
@@ -239,10 +257,14 @@ public class WhatsappApi {
             }
         }
 
+        DatabaseManager.db_msgstore.closeDatabase();
         return messageCount;
     }
 
     public String listOfTables() {
+
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
+
         List<String> list = new ArrayList<>();
         if (dbMessage != null && dbMessage.isOpen()) {
             String selectQuery = "SELECT name FROM sqlite_master WHERE type='table'";
@@ -259,6 +281,9 @@ public class WhatsappApi {
                 cursor.close();
             }
         }
+
+        DatabaseManager.db_msgstore.closeDatabase();
+
         return Utils.join(",", list);
     }
 
@@ -312,6 +337,8 @@ public class WhatsappApi {
 
         initialCheck();
 
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
+
         int messageCount = 0;
         if (dbMessage != null && dbMessage.isOpen()) {
             String selectQuery = "SELECT count(*) as count FROM messages where _id <= ?";
@@ -323,6 +350,7 @@ public class WhatsappApi {
             }
         }
 
+        DatabaseManager.db_msgstore.closeDatabase();
         return messageCount;
     }
 
@@ -374,6 +402,7 @@ public class WhatsappApi {
     public synchronized List<WChat> readChats() throws IOException, WhatsappNotInstalledException {
 
         initialCheck();
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
 
         List<WChat> wStoredMessages = new ArrayList<>();
         if (dbMessage != null && dbMessage.isOpen()) {
@@ -387,6 +416,8 @@ public class WhatsappApi {
                 cursor.close();
             }
         }
+
+        DatabaseManager.db_msgstore.closeDatabase();
 
         return wStoredMessages;
 
@@ -404,6 +435,8 @@ public class WhatsappApi {
 
         initialCheck();
 
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
+
         List<WGroupParticipant> wStoredMessages = new ArrayList<>();
         if (dbMessage != null && dbMessage.isOpen()) {
             String selectQuery = "SELECT * FROM group_participants";
@@ -416,6 +449,8 @@ public class WhatsappApi {
                 cursor.close();
             }
         }
+
+        DatabaseManager.db_msgstore.closeDatabase();
 
         return wStoredMessages;
 
@@ -535,7 +570,7 @@ public class WhatsappApi {
     }
 
     public String getMsgStorePath(boolean isPublic) {
-        if (isWhatsappInstalled && isRootAvailable) {
+        if (isWhatsappInstalled() && isRootAvailable) {
             return makeDbAccessible("databases", "msgstore.db", isPublic);
         }
         return null;
@@ -557,24 +592,22 @@ public class WhatsappApi {
      * @throws Exception
      */
     public void cleanUpDb(long effTs) throws Exception {
-        initiate();
+       // initiate();
+
+        SQLiteDatabase dbMessage = DatabaseManager.db_msgstore.openDatabase();
+
         if (dbMessage != null && dbMessage.isOpen()) {
             dbMessage.delete("messages", "timestamp < ? ", new String[]{String.valueOf(effTs)});
             dbMessage.delete("message_thumbnails", "timestamp < ? ", new String[]{String.valueOf(effTs)});
-            closeConnection();
+            //closeConnection();
             copyBackDbFile();
         }
-    }
 
-    public String getAccessDbPath() {
-        if (dbMessage != null) {
-            return dbMessage.isOpen() ? dbMessage.getPath() : "closed";
-        }
-        return String.format(whatsappPath + "/%1$s/%2$s", "databases", "msgstore.db");
+        DatabaseManager.db_msgstore.closeDatabase();
     }
 
     private String makeDbAccessible(String basePath, String dbName, boolean isPublic) {
-        String s1 = isPublic ? String.format("%1$s", context.getExternalFilesDir(context.getPackageName()).getAbsolutePath()) : appPath;
+        String s1 = isPublic ? String.format("%1$s", context.getExternalFilesDir(context.getPackageName()).getAbsolutePath()) : wPackageThis.getAppFolderPath();
         String s2 = String.format("%1$s/%2$s", s1, "databases");
 
         if (!new File(s1).exists()) {
@@ -584,7 +617,7 @@ public class WhatsappApi {
             Shell.SU.run("mkdir " + s2);
         }
         String messageDBPath = String.format("%1$s/%2$s/%3$s", s1, basePath, dbName);
-        String messageDB1Path = String.format(whatsappPath + "/%1$s/%2$s", basePath, dbName);
+        String messageDB1Path = String.format(wPackageWhatsapp.getAppFolderPath() + "/%1$s/%2$s", basePath, dbName);
         Shell.SU.run("rm " + messageDBPath + "-wal");
         Shell.SU.run("rm " + messageDBPath + "-shm");
         Shell.SU.run("rm " + messageDBPath + "-journal");
@@ -601,46 +634,34 @@ public class WhatsappApi {
         Shell.SU.run("chmod 777 " + path);
     }
 
-    public String getAppPreferencePath() {
-        return this.appPath + "/shared_prefs/";
-    }
-
-    public String getAppDbPath() {
-        return this.appPath + "/databases/";
-    }
-
-    public String getAppPath() {
-        return this.appPath + "/";
-    }
-
     public void makeFileAccessible(String path) {
         Shell.SU.run("chmod 777 " + path);
     }
 
     private void copyBackDbFile() {
         Shell.SU.run("am force-stop com.whatsapp");
-        String messageDBPath = appPath + "/databases/msgstore.db";
-        Shell.SU.run("cp " + messageDBPath + " " + whatsappPath + "/databases/msgstore.db");
-        Shell.SU.run("chmod 777 " + whatsappPath + "/databases/msgstore.db");
+        String messageDBPath = wPackageThis.getAppFolderPath() + "/databases/msgstore.db";
+        Shell.SU.run("cp " + messageDBPath + " " + wPackageWhatsapp.getAppFolderPath() + "/databases/msgstore.db");
+        Shell.SU.run("chmod 777 " + wPackageWhatsapp.getAppFolderPath() + "/databases/msgstore.db");
         Shell.SU.run("am start -n com.whatsapp/.Main");
     }
 
     private String makeSharedPreferencesAccessible() {
-        return makeKeyFileAccessible(whatsappPrefPath, "shared_prefs", NAME_WHATSAPP_PREFS);
+        return makeKeyFileAccessible(wPackageWhatsapp.getNameWhatsappPrefs(), "shared_prefs", wPackageWhatsapp.getNameWhatsappPrefs());
     }
 
     private String makeRegistrationPreferencesAccessible() {
-        return makeKeyFileAccessible(whatsappPrefPath, "shared_prefs", NAME_REGISTER_PHONE);
+        return makeKeyFileAccessible(wPackageWhatsapp.getNameWhatsappPrefs(), "shared_prefs", wPackageWhatsapp.getNameRegisterPhone());
     }
 
     private String makeAxolotlAccessible() {
-        return makeKeyFileAccessible(whatsappPath, "databases", "axolotl.db");
+        return makeKeyFileAccessible(wPackageWhatsapp.getAppFolderPath(), "databases", "axolotl.db");
     }
 
     private String makeKeyFileAccessible(String basePath, String path, String fileName) {
-        String messageDBPath = String.format(appPath + "/%1$s/%2$s", path, fileName);
+        String messageDBPath = String.format(wPackageThis.getAppFolderPath() + "/%1$s/%2$s", path, fileName);
         String message1DBPath = String.format(basePath + "/%1$s/%2$s", path, fileName);
-        String DBPath = String.format(appPath + "/%1$s", path);
+        String DBPath = String.format(wPackageThis.getAppFolderPath() + "/%1$s", path);
         if (!new File(DBPath).exists()) {
             Shell.SU.run("mkdir " + DBPath);
         }
@@ -665,11 +686,11 @@ public class WhatsappApi {
             case VIDEO:
                 name = message.getFile().getPath();
                 c = Calendar.getInstance();
-                df = new SimpleDateFormat("yyyyMMMdd");
+                df = new SimpleDateFormat("yyyyMMMdd", Locale.getDefault());
                 formattedDate = df.format(c.getTime());
                 source = new File(name);
                 rand = new Random();
-                destination = new File(vidFolder, "VID-" + formattedDate + "-WA" + (rand.nextInt(100) + rand.nextInt(75) + rand.nextInt(50)) + "." + FilenameUtils.getExtension(message.getFile().getName()));
+                destination = new File(wPackageWhatsapp.getVidFolder(), "VID-" + formattedDate + "-WA" + (rand.nextInt(100) + rand.nextInt(75) + rand.nextInt(50)) + "." + FilenameUtils.getExtension(message.getFile().getName()));
                 if (source.exists()) {
                     FileChannel src = new FileInputStream(source).getChannel();
                     FileChannel dst = new FileOutputStream(destination).getChannel();
@@ -682,11 +703,11 @@ public class WhatsappApi {
             case IMAGE:
                 name = message.getFile().getPath();
                 c = Calendar.getInstance();
-                df = new SimpleDateFormat("yyyyMMdd");
+                df = new SimpleDateFormat("yyyyMMdd", Locale.getDefault());
                 formattedDate = df.format(c.getTime());
                 source = new File(name);
                 rand = new Random();
-                destination = new File(imgFolder, "IMG-" + formattedDate + "-WA" + (rand.nextInt(100) + rand.nextInt(75) + rand.nextInt(50)) + "." + FilenameUtils.getExtension(message.getFile().getName()));
+                destination = new File(wPackageWhatsapp.getImgFolder(), "IMG-" + formattedDate + "-WA" + (rand.nextInt(100) + rand.nextInt(75) + rand.nextInt(50)) + "." + FilenameUtils.getExtension(message.getFile().getName()));
                 if (source.exists()) {
                     FileChannel src = new FileInputStream(source).getChannel();
                     FileChannel dst = new FileOutputStream(destination).getChannel();
@@ -699,11 +720,11 @@ public class WhatsappApi {
             case AUDIO:
                 name = message.getFile().getPath();
                 c = Calendar.getInstance();
-                df = new SimpleDateFormat("yyyyMMdd");
+                df = new SimpleDateFormat("yyyyMMdd",Locale.getDefault());
                 formattedDate = df.format(c.getTime());
                 source = new File(name);
                 rand = new Random();
-                destination = new File(audFolder, "AUD-" + formattedDate + "-WA" + (rand.nextInt(100) + rand.nextInt(75) + rand.nextInt(50)) + "." + FilenameUtils.getExtension(message.getFile().getName()));
+                destination = new File(wPackageWhatsapp.getAudFolder(), "AUD-" + formattedDate + "-WA" + (rand.nextInt(100) + rand.nextInt(75) + rand.nextInt(50)) + "." + FilenameUtils.getExtension(message.getFile().getName()));
                 if (source.exists()) {
                     FileChannel src = new FileInputStream(source).getChannel();
                     FileChannel dst = new FileOutputStream(destination).getChannel();
@@ -716,6 +737,8 @@ public class WhatsappApi {
         }
         sendBigMessage(contact.getId(), message.getText(), name, message.getMime());
     }
+
+
 
     private void sendBigMessage(String jid, String msg, String file, String mimeType) {
 
@@ -763,12 +786,12 @@ public class WhatsappApi {
             Bitmap bMap = null;
             File spec;
             if (mediaType == 3) {
-                spec = new File(vidFolder, file);
+                spec = new File(wPackageWhatsapp.getVidFolder(), file);
                 bMap = ThumbnailUtils.createVideoThumbnail(spec.getAbsolutePath(), MediaStore.Video.Thumbnails.MICRO_KIND);
             } else if (mediaType == 2) {
-                spec = new File(audFolder, file);
+                spec = new File(wPackageWhatsapp.getAudFolder(), file);
             } else {
-                spec = new File(imgFolder, file);
+                spec = new File(wPackageWhatsapp.getImgFolder(), file);
                 bMap = BitmapFactory.decodeFile(spec.getAbsolutePath());
             }
             long mediaSize = (file.equals("")) ? 0 : spec.length();
@@ -796,7 +819,9 @@ public class WhatsappApi {
         } else
             initialValues.put("data", msg);
 
-        long idm = dbMessage.insert("messages", null, initialValues);
+        //long idm = dbMessage.insert("messages", null, initialValues);
+        SQLiteDatabase db = DatabaseManager.db_msgstore.openDatabase();
+        long idm = db.insert("messages", null, initialValues);
 
         query1 = " insert into chat_list (key_remote_jid) select '" + jid
                 + "' where not exists (select 1 from chat_list where key_remote_jid='" + jid + "');";
@@ -807,10 +832,16 @@ public class WhatsappApi {
         ContentValues values = new ContentValues();
         values.put("docid", idm);
         values.put("c0content", "null  ");
-        dbMessage.insert("messages_fts_content", null, values);
+        //dbMessage.insert("messages_fts_content", null, values);
+        db.insert("messages_fts_content", null, values);
+        //dbMessage.execSQL(query1);
+        //dbMessage.execSQL(query2);
+        db.execSQL(query1);
+        db.execSQL(query2);
 
-        dbMessage.execSQL(query1);
-        dbMessage.execSQL(query2);
+        //dont use db.close();
+        DatabaseManager.db_msgstore.closeDatabase();
+
         //TODO: need to copyback to whatsapp folder with copyBackupFolder method - not adding it without testing.
     }
 
@@ -840,22 +871,85 @@ public class WhatsappApi {
     }
 
 
-    private static String getApplicationFolderPath(Context context, String packageName) {
-        if (android.os.Build.VERSION.SDK_INT >= 16) {
-            return context.getApplicationInfo().dataDir.replaceAll(context.getPackageName(), packageName);
-        } else {
-            return "/data/data/" + packageName;
-        }
+    @SuppressLint({"StaticFieldLeak", "SdCardPath"})
+    public synchronized void getContacts(Context context, final GetContactsListener listener) throws WhatsappNotInstalledException {
+
+        if (isWhatsappInstalled()) {
+
+            new AsyncTask<Void, Void, List<WContact>>() {
+                @Override
+                protected List<WContact> doInBackground(Void... params) {
+                    //Shell.SU.run("am force-stop " + wPackage.getName());
+                    SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File(wPackageWhatsapp.getAppFolderPath()+"/databases/wa.db"), null);
+                    List<WContact> contactList = new LinkedList<>();
+                    String selectQuery = "SELECT  jid, display_name FROM wa_contacts where phone_type is not null and is_whatsapp_user = 1";
+                    //and (display_name LIKE '%[400]%' or display_name LIKE '%[405]%' or display_name LIKE '%[406]%' or display_name LIKE '%[407]%' or display_name LIKE '%[408]%')
+                    Cursor cursor = db.rawQuery(selectQuery, null);
+                    if (cursor.moveToFirst()) {
+                        do {
+                            WContact contact = new WContact(cursor.getString(1), cursor.getString(0));
+                            contactList.add(contact);
+                        } while (cursor.moveToNext());
+                    }
+                    cursor.close();
+                    db.close();
+                    return contactList;
+                }
+
+                @Override
+                protected void onPostExecute(List<WContact> contacts) {
+                    super.onPostExecute(contacts);
+                    if (listener != null) {
+                        listener.receiveWhatsappContacts(contacts);
+                    }
+                }
+            }.execute();
+
+        } else
+            throw new WhatsappNotInstalledException();
+
+
     }
 
-    private static String getPrefPath(Context context, String packageName) {
-        if (new File("/data/data/" + packageName).exists()) {
-            return "/data/data/" + packageName;
-        }
-        return context.getApplicationInfo().dataDir.replaceAll(context.getPackageName(), packageName);
-    }
+    @SuppressLint("StaticFieldLeak")
+    public synchronized void sendMessage(final List<WContact> contacts, final WMessage message, final Context context, final SendMessageListener listener) throws IOException, WhatsappNotInstalledException {
 
+
+        if (isWhatsappInstalled()) {
+            new AsyncTask<Void, Void, Boolean>() {
+                @Override
+                protected Boolean doInBackground(Void... params) {
+                    //Shell.SU.run("am force-stop com.whatsapp");
+                    SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File( wPackageWhatsapp.getAppFolderPath() + "/databases/msgstore.db"), null);
+                    for (WContact contact : contacts) {
+                        try {
+                            sendMessage(contact, message);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    db.close();
+                    //PackageManager pm = context.getPackageManager();
+                    //Intent intent = pm.getLaunchIntentForPackage("com.whatsapp");
+                    //context.startActivity(intent);
+                    return true;
+                }
+
+                @Override
+                protected void onPostExecute(Boolean finish) {
+                    super.onPostExecute(finish);
+                    if (listener != null) {
+                        listener.finishSendWMessage(contacts, message);
+                    }
+                }
+            }.execute();
+        } else
+            throw new WhatsappNotInstalledException();
+
+    }
+/*
     private void initiate() {
+
         String messagePath = makeDbAccessible("databases", "msgstore.db", isExternalSpace);
         File file = new File(messagePath);
         try {
@@ -875,7 +969,7 @@ public class WhatsappApi {
             dbMessage = null;
         }
     }
-
+*/
     private void initialCheck() throws WhatsappNotInstalledException {
         if (!isWhatsappInstalled()) throw new WhatsappNotInstalledException();
     }
