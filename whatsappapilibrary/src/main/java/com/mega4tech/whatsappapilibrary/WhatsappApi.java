@@ -752,6 +752,13 @@ public class WhatsappApi {
         l2 = l1 / 1000L;
         k = localRandom.nextInt();
 
+        //if you send many messages to a person, this exception is thrown ..
+        //the additional hash addresses this problem
+        // Error inserting receipt_server_timestamp=-1 key_remote_jid=555481239679@s.whatsapp.net send_timestamp=-1 longitude=0.0 data=Test  needs_push=0 recipient_count=0 timestamp=1533507799271 media_duration=0 media_name=null raw_data=-1 media_wa_type=0 status=1 key_from_me=1 latitude=0.0 key_id=1533507799--1150867590 receipt_device_timestamp=-1 received_timestamp=1533507799271
+        //android.database.sqlite.SQLiteConstraintException: UNIQUE constraint failed: messages.key_remote_jid, messages.key_from_me, messages.key_id (code 2067)
+
+        String key_id = l2 + "-" + k + "-" +  getRandomHexString(10).toUpperCase();
+
         int mediaType = 0;
 
         if (mimeType == null || mimeType.length() < 2)
@@ -765,7 +772,7 @@ public class WhatsappApi {
         ContentValues initialValues = new ContentValues();
         initialValues.put("key_remote_jid", jid);
         initialValues.put("key_from_me", 1);
-        initialValues.put("key_id", l2 + "-" + k);
+        initialValues.put("key_id", key_id);
         initialValues.put("status", 1);
         initialValues.put("needs_push", 0);
         initialValues.put("timestamp", l1);
@@ -866,6 +873,17 @@ public class WhatsappApi {
         return wMediaFiles;
     }
 
+    //https://stackoverflow.com/a/14623245
+    private String getRandomHexString(int numchars){
+        Random r = new Random();
+        StringBuffer sb = new StringBuffer();
+        while(sb.length() < numchars){
+            sb.append(Integer.toHexString(r.nextInt()));
+        }
+
+        return sb.toString().substring(0, numchars);
+    }
+
     public boolean isRootAvailable() {
         return isRootAvailable;
     }
@@ -882,7 +900,7 @@ public class WhatsappApi {
                     //Shell.SU.run("am force-stop " + wPackage.getName());
                     SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File(wPackageWhatsapp.getAppFolderPath()+"/databases/wa.db"), null);
                     List<WContact> contactList = new LinkedList<>();
-                    String selectQuery = "SELECT  jid, display_name FROM wa_contacts where phone_type is not null and is_whatsapp_user = 1";
+                    String selectQuery = "SELECT  jid, display_name FROM wa_contacts where phone_type is not null and is_whatsapp_user = 1 order by display_name ASC";
                     //and (display_name LIKE '%[400]%' or display_name LIKE '%[405]%' or display_name LIKE '%[406]%' or display_name LIKE '%[407]%' or display_name LIKE '%[408]%')
                     Cursor cursor = db.rawQuery(selectQuery, null);
                     if (cursor.moveToFirst()) {
@@ -911,8 +929,19 @@ public class WhatsappApi {
 
     }
 
+    public synchronized  void sendMessage(final List<WContact> contacts, final WMessage message){
+        for (WContact contact : contacts) {
+            try {
+                sendMessage(contact, message);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
     @SuppressLint("StaticFieldLeak")
-    public synchronized void sendMessage(final List<WContact> contacts, final WMessage message, final Context context, final SendMessageListener listener) throws IOException, WhatsappNotInstalledException {
+    public synchronized void sendMessageAsync(final List<WContact> contacts, final WMessage message, final Context context, final SendMessageListener listener) throws IOException, WhatsappNotInstalledException {
 
 
         if (isWhatsappInstalled()) {
@@ -920,7 +949,7 @@ public class WhatsappApi {
                 @Override
                 protected Boolean doInBackground(Void... params) {
                     //Shell.SU.run("am force-stop com.whatsapp");
-                    SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File( wPackageWhatsapp.getAppFolderPath() + "/databases/msgstore.db"), null);
+                    //SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File( wPackageWhatsapp.getAppFolderPath() + "/databases/msgstore.db"), null);
                     for (WContact contact : contacts) {
                         try {
                             sendMessage(contact, message);
@@ -928,7 +957,7 @@ public class WhatsappApi {
                             e.printStackTrace();
                         }
                     }
-                    db.close();
+                    //db.close();
                     //PackageManager pm = context.getPackageManager();
                     //Intent intent = pm.getLaunchIntentForPackage("com.whatsapp");
                     //context.startActivity(intent);

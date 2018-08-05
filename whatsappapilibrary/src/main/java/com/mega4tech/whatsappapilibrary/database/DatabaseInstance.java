@@ -1,5 +1,6 @@
 package com.mega4tech.whatsappapilibrary.database;
 
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import com.mega4tech.whatsappapilibrary.model.WPackageWhatsapp;
@@ -49,6 +50,11 @@ public class DatabaseInstance {
         if(mOpenCounter == 1) {
             // Opening new database
             mDatabase = SQLiteDatabase.openOrCreateDatabase(new File(pathDb),null);
+            //https://stackoverflow.com/a/35220228
+            SQLiteDatabase db = mDatabase;
+            Cursor cursor = db.rawQuery("PRAGMA journal_mode = WAL;", null);
+            cursor.close();
+
         }
         return mDatabase;
     }

@@ -2,9 +2,13 @@ package com.mega4tech.whatsappapilibrary.model;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Environment;
 
 import java.io.File;
+
+import eu.chainfire.libsuperuser.Shell;
 
 /**
  * Created by Marco on 02/08/2018.
@@ -39,6 +43,21 @@ public class WPackage {
         return getPrefPath(this.context, this.namePackage);
     }
 
+    public void stopApplication(){
+        Shell.SU.run("am force-stop " + this.namePackage);
+    }
+
+    public void startApplication(){
+        PackageManager pm = context.getPackageManager();
+        Intent intent = pm.getLaunchIntentForPackage(this.namePackage);
+        context.startActivity(intent);
+    }
+
+    public void restartApplication(){
+        stopApplication();
+        startApplication();
+    }
+
 
     @SuppressLint("SdCardPath")
     private static String getApplicationFolderPath(Context context, String packageName) {
@@ -59,6 +78,9 @@ public class WPackage {
         }
         return context.getApplicationInfo().dataDir.replaceAll(context.getPackageName(), packageName);
     }
+
+
+
 
 
 }

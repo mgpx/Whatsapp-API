@@ -54,10 +54,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private Button mAddContactsBtn;
     private EditText mMessageTextTv;
     private Button mSendMsgBtn;
+    private Button mSendMsg20Btn;
+    private Button mRestartBtn;
     private TextView mAttachmentTv;
     private Button mAddAttachmentBtn;
     private ContactCardRecyclerViewAdapter mAdapter;
     private WhatsappApi whatsappApi;
+    private WPackageWhatsapp wPackageWhatsapp;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,13 +70,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mReceivers = new LinkedList<>();
 
         //if you use a custom version...
-        WPackageWhatsapp wPackageWhatsapp = new WPackageWhatsapp(
+        /*
+        wPackageWhatsapp = new WPackageWhatsapp(
                 MainActivity.this,
                 "com.gbwhatsapp3",
                 Environment.getExternalStorageDirectory().getAbsolutePath() + "/GBWhatsApp3/Media/GBWhatsApp3 Images/Sent",
                 Environment.getExternalStorageDirectory().getAbsolutePath() + "/GBWhatsApp3/Media/GBWhatsApp3 Video/Sent",
                 Environment.getExternalStorageDirectory().getAbsolutePath() + "/GBWhatsApp3/Media/GBWhatsApp3 Audio/Sent");
+                */
 
+        wPackageWhatsapp = new WPackageWhatsapp(
+                MainActivity.this,
+                "com.whatsapp",
+                Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Images/Sent",
+                Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video/Sent",
+                Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Audio/Sent");
 
         whatsappApi = new WhatsappApi.Builder()
                 .setContext(MainActivity.this)
@@ -101,6 +112,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mAddAttachmentBtn.setOnClickListener(this);
         mAddContactsBtn.setEnabled(false);
         mSendMsgBtn.setEnabled(false);
+        mSendMsg20Btn.setOnClickListener(this);
+        mRestartBtn.setOnClickListener(this);
 
         RecyclerView.LayoutManager mLayoutManager = new LinearLayoutManager(getApplicationContext(), LinearLayoutManager.HORIZONTAL, true);
         mContactsRv.setLayoutManager(mLayoutManager);
@@ -138,6 +151,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mSendMsgBtn = (Button) findViewById(R.id.send_msg_btn);
         mAttachmentTv = (TextView) findViewById(R.id.attachment_tv);
         mAddAttachmentBtn = (Button) findViewById(R.id.add_attachment_btn);
+        mRestartBtn = findViewById(R.id.restart_btn);
+        mSendMsg20Btn = findViewById(R.id.send20_msg_btn);
 
     }
 
@@ -204,7 +219,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 WMessage message = new WMessage(text, attachmentFile, this);
 
                 try {
-                    whatsappApi.sendMessage(mReceivers, message, this, new SendMessageListener() {
+                    whatsappApi.sendMessageAsync(mReceivers, message, this, new SendMessageListener() {
                         @Override
                         public void finishSendWMessage(List<WContact> contact, WMessage message) {
                             Toast.makeText(MainActivity.this, "your message has been sent successfully", Toast.LENGTH_SHORT).show();
@@ -216,6 +231,48 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+                break;
+            case R.id.send20_msg_btn:
+                if (mReceivers.size() < 1) {
+                    Toast.makeText(this, "You should select one receiver at least", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (mReceivers.size() > 5) {
+                    Toast.makeText(this, "You should select less than 5 receivers, demo version !!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (TextUtils.isEmpty(mMessageTextTv.getText()) && attachmentFile == null) {
+                    Toast.makeText(this, "please enter your message or select a media file to send", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                String text1 = (!TextUtils.isEmpty(mMessageTextTv.getText())) ? mMessageTextTv.getText().toString() : "";
+                WMessage message1 = new WMessage(text1, attachmentFile, this);
+
+                for(int i = 0; i <= 20; i++) {
+
+
+                    try {
+                        whatsappApi.sendMessage(mReceivers, message1);
+                        /*
+                        whatsappApi.sendMessageAsync(mReceivers, message1, this, new SendMessageListener() {
+                            @Override
+                            public void finishSendWMessage(List<WContact> contact, WMessage message) {
+
+                                Toast.makeText(MainActivity.this, "your message has been sent successfully", Toast.LENGTH_SHORT).show();
+
+                            }
+                        });*/
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                }
+
+
+                break;
+            case R.id.restart_btn:
+                wPackageWhatsapp.restartApplication();
                 break;
         }
     }
