@@ -833,7 +833,10 @@ public class WhatsappApi {
         query1 = " insert into chat_list (key_remote_jid) select '" + jid
                 + "' where not exists (select 1 from chat_list where key_remote_jid='" + jid + "');";
 
-        query2 = " update chat_list set message_table_id = (select max(messages._id) from messages) where chat_list.key_remote_jid='" + jid + "';";
+        query2 = " update chat_list " +
+                " set message_table_id = (select max(messages._id) from messages), " +
+                " sort_timestamp = " + l1 + " " +
+                " where chat_list.key_remote_jid='" + jid + "';";
 
 
         ContentValues values = new ContentValues();
@@ -900,12 +903,18 @@ public class WhatsappApi {
                     //Shell.SU.run("am force-stop " + wPackage.getName());
                     SQLiteDatabase db = SQLiteDatabase.openOrCreateDatabase(new File(wPackageWhatsapp.getAppFolderPath()+"/databases/wa.db"), null);
                     List<WContact> contactList = new LinkedList<>();
-                    String selectQuery = "SELECT  jid, display_name FROM wa_contacts where phone_type is not null and is_whatsapp_user = 1 order by display_name ASC";
-                    //and (display_name LIKE '%[400]%' or display_name LIKE '%[405]%' or display_name LIKE '%[406]%' or display_name LIKE '%[407]%' or display_name LIKE '%[408]%')
+                    String selectQuery = "SELECT  jid, display_name FROM wa_contacts where phone_type is not null and is_whatsapp_user = 1 order by display_name";
+
                     Cursor cursor = db.rawQuery(selectQuery, null);
                     if (cursor.moveToFirst()) {
                         do {
-                            WContact contact = new WContact(cursor.getString(1), cursor.getString(0));
+
+                            String displayName = cursor.getString(1);
+                            String jid = cursor.getString(0); // //XXXXXXXXXXXXX@s.whatsapp.net
+                            if (displayName == null){
+                                displayName = jid.substring(0, jid.length() - "@s.whatsapp.net".length());
+                            }
+                            WContact contact = new WContact(displayName, jid);
                             contactList.add(contact);
                         } while (cursor.moveToNext());
                     }

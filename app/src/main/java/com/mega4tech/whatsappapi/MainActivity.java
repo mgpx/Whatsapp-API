@@ -86,6 +86,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Video/Sent",
                 Environment.getExternalStorageDirectory().getAbsolutePath() + "/WhatsApp/Media/WhatsApp Audio/Sent");
 
+
+
         whatsappApi = new WhatsappApi.Builder()
                 .setContext(MainActivity.this)
                 .isExternalSpace(false)
@@ -160,6 +162,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.add_contacts_btn:
+
+
                 new AlertDialog.Builder(this)
                         .setMultiChoiceItems(mContacts, mSelectedContacts, new DialogInterface.OnMultiChoiceClickListener() {
                             @Override
@@ -183,6 +187,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             }
                         })
                         .show();
+
+
                 break;
 
             case R.id.add_attachment_btn:
@@ -207,10 +213,12 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     Toast.makeText(this, "You should select one receiver at least", Toast.LENGTH_SHORT).show();
                     return;
                 }
+                /*
                 if (mReceivers.size() > 5) {
                     Toast.makeText(this, "You should select less than 5 receivers, demo version !!", Toast.LENGTH_SHORT).show();
                     return;
                 }
+                */
                 if (TextUtils.isEmpty(mMessageTextTv.getText()) && attachmentFile == null) {
                     Toast.makeText(this, "please enter your message or select a media file to send", Toast.LENGTH_SHORT).show();
                     return;
